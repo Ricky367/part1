@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>紅綠燈小遊戲 - 得分版</title>
+  <style>
+    body {
+      background-color: #222;
+      color: #fff;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    #scoreBoard {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      font-size: 24px;
+      font-weight: bold;
+      color: yellow;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .controls input {
+      width: 60px;
+      text-align: center;
+      padding: 5px;
+      border-radius: 4px;
+      border: none;
+    }
+
+    .controls button {
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: #444;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    .controls button:hover {
+      background: #666;
+    }
+
+    .traffic-light {
+      width: 100px;
+      height: 260px;
+      background: #111;
+      border-radius: 20px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .light {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: #555;
+      opacity: 0.3;
+      transition: 0.3s;
+    }
+
+    .red.active { background: red; opacity: 1; }
+    .yellow.active { background: yellow; opacity: 1; }
+    .green.active { background: green; opacity: 1; }
+
+    .road {
+      position: relative;
+      width: 100%;
+      max-width: 800px;
+      height: 160px;
+      margin-top: 30px;
+      background: #333;
+      overflow: hidden;
+      border-top: 3px dashed #777;
+    }
+
+    .car {
+      width: 60px;
+      height: 30px;
+      background: #0af;
+      border-radius: 6px;
+      position: absolute;
+      top: 20px;
+      left: 0;
+    }
+
+    .pedestrian {
+      width: 20px;
+      height: 40px;
+      background: #0f0;
+      position: absolute;
+      bottom: 10px;
+      border-radius: 5px;
+    }
+
+    .wait-zone {
+      position: absolute;
+      bottom: 10px;
+      left: 0;
+      width: 30px;
+      height: 60px;
+      border: 2px dashed #0f0;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="scoreBoard">Score: 0</div>
+
+  <div class="controls">
+    <label>紅燈 <input type="number" id="redTime" value="3"></label>
+    <label>黃燈 <input type="number" id="yellowTime" value="1"></label>
+    <label>綠燈 <input type="number" id="greenTime" value="3"></label>
+    <button onclick="startTraffic()">開始</button>
+    <button onclick="requestCrossing()">🚶‍♂️ 我要過馬路</button>
+  </div>
+
+  <div class="traffic-light">
+    <div class="light red" id="red"></div>
+    <div class="light yellow" id="yellow"></div>
+    <div class="light green" id="green"></div>
+  </div>
+
+  <div class="road">
+    <div class="wait-zone"></div>
+    <div class="car" id="car"></div>
+    <div class="pedestrian"></div>
+    <div class="pedestrian"></div>
+    <div class="pedestrian"></div>
+  </div>
+
+  <script>
+    const lights = ["red", "yellow", "green"];
+    let durations = { red: 3000, yellow: 1000, green: 3000 };
+    let current = 0;
+    let lightTimer;
+    let pedestrianRequest = false;
+    let interrupted = false;
+
+    const car = document.getElementById("car");
+    const peds = Array.from(document.querySelectorAll(".pedestrian"));
+    const pedSpacing = 40;
+    let carPos = 0;
+    const pedPos = Array(peds.length).fill(0);
+    let crossed = Array(peds.length).fill(false);
+    let score = 0;
+
+    function updateDurations() {
+      durations.red = +document.getElementById("redTime").value * 1000;
+      durations.yellow = +document.getElementById("yellowTime").value * 1000;
+      durations.green = +document.getElementById("greenTime").value * 1000;
+    }
+
+    function setLight(index) {
+      lights.forEach(l => document.getElementById(l).classList.remove("active"));
+      document.getElementById(lights[index]).classList.add("active");
+
+      // 每次綠燈開始都重設 crossed 狀態
+      if (lights[index] === "green") {
+        crossed = Array(peds.length).fill(false);
+      }
+    }
+
+    function changeLight() {
+      if (pedestrianRequest && lights[current] === "green") {
+        current = 1; // yellow
+        pedestrianRequest = false;
+        interrupted = true;
+        setLight(current);
+        lightTimer = setTimeout(changeLight, durations.yellow);
+        return;
+      }
+
+      current = (current + 1) % lights.length;
+      setLight(current);
+
+      const nowLight = lights[current];
+      lightTimer = setTimeout(changeLight, durations[nowLight]);
+
+      if (interrupted && nowLight === "red") {
+        interrupted = false;
+      }
+    }
+
+    function startTraffic() {
+      clearTimeout(lightTimer);
+      current = 0;
+      carPos = 0;
+      for (let i = 0; i < pedPos.length; i++) pedPos[i] = 0;
+      crossed = Array(peds.length).fill(false);
+      updateDurations();
+      setLight(current);
+      lightTimer = setTimeout(changeLight, durations[lights[current]]);
+    }
+
+    function moveCar() {
+      const redOn = document.getElementById("red").classList.contains("active");
+      const greenOn = document.getElementById("green").classList.contains("active");
+
+      if (greenOn) carPos += 2;
+      else if (!redOn) carPos += 1;
+
+      if (carPos > window.innerWidth) carPos = -60;
+      car.style.left = carPos + "px";
+
+      requestAnimationFrame(moveCar);
+    }
+
+    function movePeds() {
+      const redOn = document.getElementById("red").classList.contains("active");
+
+      peds.forEach((ped, i) => {
+        if (redOn) {
+          pedPos[i] += 1.5;
+        } else {
+          pedPos[i] = 0;
+        }
+
+        // 得分邏輯：走超過畫面右邊就加分
+        if (pedPos[i] > window.innerWidth - 60 && !crossed[i]) {
+          score++;
+          document.getElementById("scoreBoard").textContent = `Score: ${score}`;
+          crossed[i] = true;
+        }
+
+        if (pedPos[i] > window.innerWidth) pedPos[i] = -20;
+        ped.style.left = pedPos[i] + "px";
+        ped.style.bottom = 10 + i * pedSpacing + "px";
+      });
+
+      requestAnimationFrame(movePeds);
+    }
+
+    function requestCrossing() {
+      pedestrianRequest = true;
+      alert("⏳ 行人請求中：等待綠燈結束後會切換紅燈");
+    }
+
+    moveCar();
+    movePeds();
+  </script>
+</body>
+</html>
