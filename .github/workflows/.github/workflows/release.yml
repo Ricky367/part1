@@ -1,0 +1,37 @@
+name: Build & Release Portable
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            8.0.x
+
+      - name: Restore & Build (Release)
+        run: |
+          dotnet restore
+          dotnet publish -c Release -o out/portable /p:PublishSingleFile=true /p:DebugType=None /p:PublishReadyToRun=true
+
+      - name: Zip portable
+        run: |
+          powershell -command "Compress-Archive -Path out/portable/* -DestinationPath out/part1-portable.zip"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/part1-portable.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
